@@ -166,13 +166,10 @@ input[readonly]{border-color:transparent !important;background:transparent !impo
 @media (prefers-reduced-motion: no-preference){ .finish svg .star{transform-origin:130px 120px;animation:pop .6s ease-out} @keyframes pop{from{transform:scale(.6) rotate(-12deg)}to{transform:none}} }
 footer p{margin:4px auto;max-width:60em;line-height:1.4}
 footer a{color:var(--graphite)}
-.backlink{align-self:flex-start;font-size:1rem;color:var(--graphite);text-decoration:none;border-bottom:2px dashed var(--pencil)}
-.backlink:hover{border-bottom-color:var(--orange)}
 </style>
 </head>
 <body>
 <main>
-  <a class="backlink" href="index.html">← Alle Übungen</a>
   <header>
     <div>
       <h1>Brüche subtrahieren üben</h1>
@@ -405,6 +402,7 @@ footer a{color:var(--graphite)}
       } else if (kind === 'versch'){
         b = rnd(2, L === 1 ? 6 : 9); d = rnd(2, L === 1 ? 6 : 9);
         if (b === d || b % d === 0 || d % b === 0 || lcm(b,d) > (L === 1 ? 30 : 60)) continue;
+        if (st.view === 'rect' && gcd(b,d) !== 1 && tries < 1500) continue;
       }
       a = rnd(1,b-1); c = rnd(1,d-1);
       if (!okPair(a,b,c,d)) continue;
@@ -524,7 +522,19 @@ footer a{color:var(--graphite)}
   const R = (x,y,w,h,fill,stroke,sw,extra) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke||'none'}" stroke-width="${sw||0}" ${extra||''}/>`;
   const Ln = (x1,y1,x2,y2,w,dash,col) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col||'var(--graphite)'}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
   const T = (x,y,s,size,anchor) => `<text x="${x}" y="${y}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size||18}" text-anchor="${anchor||'middle'}">${s}</text>`;
-  const cross = (x,y,w,h) => Ln(x+4,y+4,x+w-4,y+h-4,2.5) + Ln(x+w-4,y+4,x+4,y+h-4,2.5);
+  const cross = (x,y,w,h) => Ln(x+4,y+4,x+w-4,y+h-4,3.2) + Ln(x+w-4,y+4,x+4,y+h-4,3.2);
+  // Bruch übereinander wie in der Rechnung. xr = rechter Rand (anchor end) bzw. Mitte (anchor middle), ym = Mitte
+  function TF(xr, ym, p, q, size, anchor, prefix){
+    size = size || 19;
+    if (q === 1) return (prefix ? T(xr - String(p).length*size*0.55 - 6, ym + size*0.35, prefix, size, 'end') : '') + T(xr, ym + size*0.35, p, size, anchor || 'end');
+    const w = Math.max(String(p).length, String(q).length) * size * 0.55 + 8;
+    const cx = anchor === 'middle' ? xr : xr - w/2;
+    let s = `<text x="${cx}" y="${ym - 4}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size}" text-anchor="middle">${p}</text>`
+          + `<text x="${cx}" y="${ym + size*0.85}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size}" text-anchor="middle">${q}</text>`
+          + `<line x1="${cx - w/2}" y1="${ym + 1}" x2="${cx + w/2}" y2="${ym + 1}" stroke="var(--graphite)" stroke-width="2" class="fracbar"/>`;
+    if (prefix) s += T(cx - w/2 - 6, ym + size*0.35, prefix, size, 'end');
+    return s;
+  }
   function sketch(s){
     const texts = s.match(/<text[\s\S]*?<\/text>/g) || [];
     return DEFS + '<g filter="url(#pencil)">' + s.replace(/<text[\s\S]*?<\/text>/g,'') + '</g>' + texts.join('');
@@ -561,11 +571,12 @@ footer a{color:var(--graphite)}
     const {a,b,c,d} = t, N = st.N, X = 90, W = 470, H = 44;
     let s = '';
     const fine = N && t.kind !== 'gleich';
-    s += T(X-14, 46, `${a}/${b}`, 20, 'end');
+    s += TF(X-14, 44, a, b, 19);
     s += fine ? stripCells(X,22,W,H,N,fillRun(N,0,a*N/b,'url(#hatchO)'),N/b) : stripCells(X,22,W,H,b,fillRun(b,0,a,'url(#hatchO)'),0);
-    s += T(X-14, 112, `${c}/${d}`, 20, 'end');
+    s += TF(X-14, 110, c, d, 19);
     const fillB = ADD ? 'url(#hatchY)' : 'url(#hatchY)';
-    s += fine ? stripCells(X,88,W,H,N,fillRun(N,0,c*N/d,fillB),N/d) : stripCells(X,88,W,H,d,fillRun(d,0,c,fillB),0);
+    const nB = fine ? N : d, cB = fine ? c*N/d : c;
+    s += stripCells(X,88,W,H,nB,fillRun(nB,0,cB,fillB),fine ? N/d : 0, ADD ? null : Array.from({length:cB},(_,j)=>j));
     if (N){
       const x = a*N/b, y = c*N/d;
       s += T(X-14, 196, ADD ? 'zusammen' : 'übrig', 18, 'end');
@@ -573,7 +584,7 @@ footer a{color:var(--graphite)}
         const f = Array.from({length:N}, (_,i) => i < x ? 'url(#hatchO)' : (i < x+y ? 'url(#hatchY)' : null));
         s += stripCells(X,172,W,H,N,f,0);
       } else {
-        const f = fillRun(N,0,x,'url(#hatchO)'), cr = Array.from({length:y},(_,j)=>x-y+j);
+        const f = Array.from({length:N},(_,i) => i < x-y ? 'url(#hatchO)' : (i < x ? 'var(--orange-soft)' : null)), cr = Array.from({length:y},(_,j)=>x-y+j);
         s += stripCells(X,172,W,H,N,f,0,cr);
       }
       s += T(300, 262, t.kind === 'gleich' ? `Alle Felder sind gleich groß: ${F(N)} im Ganzen.` : `Gemeinsamer Nenner ${N}: Beide Streifen haben jetzt ${N} gleich große Felder.`, 18);
@@ -588,41 +599,64 @@ footer a{color:var(--graphite)}
   }
 
   function drawRect(t){
-    const {a,b,c,d} = t, N = st.N, fine = N && t.kind !== 'gleich';
+    const {a,b,c,d} = t, N = st.N, fine = !!N && t.kind !== 'gleich';
     const W = 240, H = 150, Y = 30, XA = 40, XB = 320;
+    // Ungleichnamig: Beet A senkrecht, Beet B waagerecht (über Kreuz). Ein gemeinsames Raster für alle drei Beete
+    // gibt es über Kreuz nur, wenn N ein Vielfaches von b·d ist. Bei kleinerem N werden beide Beete senkrecht eingeteilt.
+    const crossLayout = t.kind !== 'gleich' && (!N || N % (b*d) === 0);
+    const cols = N ? (crossLayout ? b : N) : 0, rows = N ? (crossLayout ? N/b : 1) : 0;   // gemeinsames Raster
     let s = T(XA+W/2, 20, `Beet A: ${a}/${b}`, 19) + T(XB+W/2, 20, `Beet B: ${c}/${d}`, 19);
-    // Beet A: b senkrechte Streifen, a gefärbt; feiner: jede Spalte in N/b Reihen
-    s += R(XA,Y,W,H,'var(--sheet)') + R(XA,Y,W*a/b,H,'url(#hatchO)');
-    if (fine){ const rws = N/b; for (let r=1;r<rws;r++) s += Ln(XA,Y+H*r/rws,XA+W,Y+H*r/rws,1.6,'6 4'); }
+    const gridLines = (X) => {
+      let g = '';
+      if (!fine) return g;
+      for (let r=1;r<rows;r++) g += Ln(X,Y+H*r/rows,X+W,Y+H*r/rows,1.6,'6 4');
+      for (let cc=1;cc<cols;cc++) g += Ln(X+W*cc/cols,Y,X+W*cc/cols,Y+H,1.6,'6 4');
+      return g;
+    };
+    // Beet A: b senkrechte Streifen, a gefärbt
+    s += R(XA,Y,W,H,'var(--sheet)') + R(XA,Y,W*a/b,H,'url(#hatchO)') + gridLines(XA);
     for (let i=1;i<b;i++) s += Ln(XA+W*i/b,Y,XA+W*i/b,Y+H,3);
     s += R(XA,Y,W,H,'none','var(--graphite)',3.5);
-    // Beet B: d waagerechte Streifen (bei gleichen Nennern senkrecht wie A)
-    if (t.kind === 'gleich'){
-      s += R(XB,Y,W,H,'var(--sheet)') + R(XB,Y,W*c/d,H,'url(#hatchY)');
-      for (let i=1;i<d;i++) s += Ln(XB+W*i/d,Y,XB+W*i/d,Y+H,3);
-    } else {
-      s += R(XB,Y,W,H,'var(--sheet)') + R(XB,Y,W,H*c/d,'url(#hatchY)');
-      if (fine){ const cls = N/d; for (let cc=1;cc<cls;cc++) s += Ln(XB+W*cc/cls,Y,XB+W*cc/cls,Y+H,1.6,'6 4'); }
+    // Beet B: waagerecht (Kreuz-Einteilung) oder senkrecht
+    s += R(XB,Y,W,H,'var(--sheet)');
+    if (crossLayout){
+      s += R(XB,Y,W,H*c/d,'url(#hatchY)') + gridLines(XB);
+      if (!ADD){
+        if (fine){ const rc = rows*c/d; for (let r=0;r<rc;r++) for (let cc=0;cc<cols;cc++) s += cross(XB+W*cc/cols,Y+H*r/rows,W/cols,H/rows); }
+        else for (let r=0;r<c;r++) s += cross(XB,Y+H*r/d,W,H/d);
+      }
       for (let i=1;i<d;i++) s += Ln(XB,Y+H*i/d,XB+W,Y+H*i/d,3);
+    } else {
+      s += R(XB,Y,W*c/d,H,'url(#hatchY)') + gridLines(XB);
+      if (!ADD){
+        if (fine){ const n = c*N/d; for (let i=0;i<n;i++) s += cross(XB+W*i/N,Y,W/N,H); }
+        else for (let i=0;i<c;i++) s += cross(XB+W*i/d,Y,W/d,H);
+      }
+      for (let i=1;i<d;i++) s += Ln(XB+W*i/d,Y,XB+W*i/d,Y+H,3);
     }
     s += R(XB,Y,W,H,'none','var(--graphite)',3.5);
-    // Beet C: Ergebnis als Raster (b Spalten, N/b Reihen), spaltenweise gefüllt
+    // Beet C: dasselbe Raster wie A und B, spaltenweise gefüllt
     const XC = 180, YC = 230;
     if (N){
-      const cols = b, rows = N/b, x = a*N/b, y = c*N/d, cw = W/cols, ch = H/rows;
+      const C = t.kind === 'gleich' ? b : cols, Rw = t.kind === 'gleich' ? 1 : rows;
+      const x = a*N/b, y = c*N/d, cw = W/C, ch = H/Rw;
       s += T(XC+W/2, 220, ADD ? `Beet C: zusammen` : `Beet C: übrig nach dem Wegnehmen`, 19);
       s += R(XC,YC,W,H,'var(--sheet)');
       for (let i=0;i<N;i++){
-        const col = Math.floor(i/rows), row = i % rows, cx = XC+col*cw, cy = YC+row*ch;
-        if (i < x) s += R(cx,cy,cw,ch,'url(#hatchO)');
+        const col = Math.floor(i/Rw), row = i % Rw, cx = XC+col*cw, cy = YC+row*ch;
+        if (i < x) s += R(cx,cy,cw,ch, (!ADD && i >= x-y) ? 'var(--orange-soft)' : 'url(#hatchO)');
         else if (ADD && i < x+y) s += R(cx,cy,cw,ch,'url(#hatchY)');
         if (!ADD && i >= x-y && i < x) s += cross(cx,cy,cw,ch);
       }
-      for (let r=1;r<rows;r++) s += Ln(XC,YC+ch*r,XC+W,YC+ch*r,1.6);
-      for (let cc=1;cc<cols;cc++) s += Ln(XC+cw*cc,YC,XC+cw*cc,YC+H,3);
+      for (let r=1;r<Rw;r++) s += Ln(XC,YC+ch*r,XC+W,YC+ch*r,1.6);
+      for (let cc=1;cc<C;cc++) s += Ln(XC+cw*cc,YC,XC+cw*cc,YC+H, (cc % (C/b) === 0) ? 3 : 1.6);
       s += R(XC,YC,W,H,'none','var(--graphite)',3.5);
       s += T(300, 410, `${F(N)} im Ganzen`, 18);
-      $('piccap').textContent = t.kind === 'gleich' ? 'Die Felder sind gleich groß.' : 'Die gestrichelten Linien teilen beide Beete in gleich große Felder.';
+      $('piccap').textContent = t.kind === 'gleich' ? 'Die Felder sind gleich groß.'
+        : crossLayout ? 'Über Kreuz eingeteilt: Die gestrichelten Linien teilen alle drei Beete in dieselben gleich großen Felder.'
+        : (b % d === 0 || d % b === 0)
+          ? `${Math.max(b,d)} ist schon ein Vielfaches von ${Math.min(b,d)}. Deshalb sind jetzt beide Beete senkrecht in ${N} gleich große Felder geteilt.`
+          : `Mit dem Nenner ${N} passen die Einteilungen nur senkrecht übereinander, deshalb ist Beet B jetzt auch senkrecht geteilt. Über Kreuz klappt es mit dem Nenner ${b} · ${d} = ${b*d}.`;
     } else {
       s += R(XC,YC,W,H,'none','var(--pencil)',2,'stroke-dasharray="8 6"') + T(300,YC+H/2+6,'Gemeinsamer Nenner?',18);
       $('piccap').textContent = 'Wenn dein gemeinsamer Nenner stimmt, werden beide Beete fein genug eingeteilt.';

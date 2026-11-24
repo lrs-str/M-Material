@@ -169,13 +169,10 @@ input[readonly]{border-color:transparent !important;background:transparent !impo
 .whole{font-family:var(--display);font-size:2.1rem}
 footer p{margin:4px auto;max-width:60em;line-height:1.4}
 footer a{color:var(--graphite)}
-.backlink{align-self:flex-start;font-size:1rem;color:var(--graphite);text-decoration:none;border-bottom:2px dashed var(--pencil)}
-.backlink:hover{border-bottom-color:var(--orange)}
 </style>
 </head>
 <body>
 <main>
-  <a class="backlink" href="index.html">← Alle Übungen</a>
   <header>
     <div>
       <h1>Brüche multiplizieren üben</h1>
@@ -557,13 +554,32 @@ footer a{color:var(--graphite)}
   const R = (x,y,w,h,fill,stroke,sw,extra) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke||'none'}" stroke-width="${sw||0}" ${extra||''}/>`;
   const Ln = (x1,y1,x2,y2,w,dash,col) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col||'var(--graphite)'}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''}/>`;
   const T = (x,y,s,size,anchor) => `<text x="${x}" y="${y}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size||18}" text-anchor="${anchor||'middle'}">${s}</text>`;
+  // Bruch übereinander wie in der Rechnung. xr = rechter Rand (anchor end) bzw. Mitte (anchor middle), ym = Mitte
+  function TF(xr, ym, p, q, size, anchor, prefix){
+    size = size || 19;
+    if (q === 1) return (prefix ? T(xr - String(p).length*size*0.55 - 6, ym + size*0.35, prefix, size, 'end') : '') + T(xr, ym + size*0.35, p, size, anchor || 'end');
+    const w = Math.max(String(p).length, String(q).length) * size * 0.55 + 8;
+    const cx = anchor === 'middle' ? xr : xr - w/2;
+    let s = `<text x="${cx}" y="${ym - 4}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size}" text-anchor="middle">${p}</text>`
+          + `<text x="${cx}" y="${ym + size*0.85}" fill="var(--graphite)" font-family="Patrick Hand, Comic Sans MS, cursive" font-size="${size}" text-anchor="middle">${q}</text>`
+          + `<line x1="${cx - w/2}" y1="${ym + 1}" x2="${cx + w/2}" y2="${ym + 1}" stroke="var(--graphite)" stroke-width="2" class="fracbar"/>`;
+    if (prefix) s += T(cx - w/2 - 6, ym + size*0.35, prefix, size, 'end');
+    return s;
+  }
   function sketch(s){ const texts = s.match(/<text[\s\S]*?<\/text>/g) || []; return DEFS + '<g filter="url(#pencil)">' + s.replace(/<text[\s\S]*?<\/text>/g,'') + '</g>' + texts.join(''); }
   // Streifen über mehrere Ganze: segs = [{from,to (in Feldern), fill}]
+  // Streifen über mehrere Ganze mit kleiner Lücke zwischen den Ganzen; segs in Feldern über alle Ganzen
+  const GAP = 14;
+  const unitW = (W,U) => (W - (U-1)*GAP) / U;
   function wholes(X,y,W,H,U,parts,segs){
-    const uw = W/U; let s = '';
-    for (let u=0;u<U;u++) s += R(X+u*uw,y,uw,H,'var(--sheet)');
-    segs.forEach(g => s += R(X+uw*g.from/parts, y, uw*(g.to-g.from)/parts, H, g.fill));
-    for (let u=0;u<U;u++){ for (let j=1;j<parts;j++) s += Ln(X+u*uw+uw*j/parts,y,X+u*uw+uw*j/parts,y+H,1.5); s += R(X+u*uw,y,uw,H,'none','var(--graphite)',3.2); }
+    const uw = unitW(W,U); let s = '';
+    for (let u=0;u<U;u++){
+      const x0 = X + u*(uw+GAP), lo = u*parts, hi = (u+1)*parts;
+      s += R(x0,y,uw,H,'var(--sheet)');
+      segs.forEach(g => { const f = Math.max(g.from,lo), t = Math.min(g.to,hi); if (t > f) s += R(x0+uw*(f-lo)/parts, y, uw*(t-f)/parts, H, g.fill); });
+      for (let j=1;j<parts;j++) s += Ln(x0+uw*j/parts,y,x0+uw*j/parts,y+H,1.5);
+      s += R(x0,y,uw,H,'none','var(--graphite)',3.2);
+    }
     return s;
   }
   function draw(){
@@ -578,10 +594,10 @@ footer a{color:var(--graphite)}
       const U = Math.max(1, Math.ceil(t.a*t.n/t.b)), segs = [];
       for (let i=0;i<t.n;i++) segs.push({from:i*t.a, to:(i+1)*t.a, fill: i%2 ? 'url(#hY)' : 'url(#hO)'});
       s += T(70,38,`${t.a}/${t.b}`,20,'end') + wholes(80,14,480,44,U,t.b*U/U*1,[]).replace(/^/,'');
-      s = T(70,40,`${t.a}/${t.b}`,20,'end') + wholes(80,16,480/U,40,1,t.b,[{from:0,to:t.a,fill:'url(#hO)'}]);
+      s = TF(70,36,t.a,t.b,19) + wholes(80,16,unitW(480,U),40,1,t.b,[{from:0,to:t.a,fill:'url(#hO)'}]);
       s += T(70,130,`· ${t.n}`,20,'end') + wholes(80,104,480,48,U,t.b,segs.map(g => ({from:g.from, to:g.to, fill:g.fill})).map(g => g)).replace(/x="NaN"/g,'');
       s += T(300,200, `${t.n}-mal ${F(t.a)} = ${F(t.a*t.n)}. Ein Ganzes hat ${F(t.b)}.`, 19);
-      $('piccap').textContent = U > 1 ? 'Jedes umrandete Stück ist ein Ganzes. Die Farben wechseln bei jedem neuen Summanden.' : 'Die Farben wechseln bei jedem neuen Summanden.';
+      $('piccap').textContent = U > 1 ? 'Jedes umrandete Stück ist ein Ganzes, zwischen den Ganzen ist eine Lücke. Die Farben wechseln bei jedem neuen Summanden.' : 'Die Farben wechseln bei jedem neuen Summanden.';
       h = 220;
     } else if (k === 'mbb'){
       const X=150, Y=16, W=300, H=200;
@@ -606,21 +622,21 @@ footer a{color:var(--graphite)}
     } else if (k === 'dbg' || k === 'dbv' || k === 'dk'){
       const N = (k === 'dbv' && t.N) ? t.N : lcm(t.b,t.d), x = t.a*N/t.b, y = t.c*N/t.d;
       const X = 110, W = 460, H = 40;
-      s += T(X-12,40,`${t.a}/${t.b}`,20,'end') + wholes(X,16,W,H,1,N,[{from:0,to:x,fill:'url(#hO)'}]);
+      s += TF(X-12,36,t.a,t.b,19) + wholes(X,16,W,H,1,N,[{from:0,to:x,fill:'url(#hO)'}]);
       const segs = []; let pos = 0, i = 0;
       while (pos < x){ const to = Math.min(pos+y, x); segs.push({from:pos, to, fill: i%2 ? 'url(#hY)' : 'url(#hX)'}); pos += y; i++; }
-      s += T(X-12,108,`${t.c}/${t.d}`,20,'end') + wholes(X,84,W,H,1,N,segs);
-      segs.forEach((g,j) => { const full = g.to - g.from === y; s += T(X+W*(g.from+g.to)/2/N, 150, full ? `${j+1}` : `${g.to-g.from}/${y}`, 17); });
+      s += TF(X-12,104,t.c,t.d,19) + wholes(X,84,W,H,1,N,segs);
+      segs.forEach((g,j) => { const full = g.to - g.from === y; s += full ? T(X+W*(g.from+g.to)/2/N, 150, `${j+1}`, 17) : TF(X+W*(g.from+g.to)/2/N, 144, g.to-g.from, y, 16, 'middle'); });
       s += T(300,196, `Wie oft passt ${t.c}/${t.d} in ${t.a}/${t.b}? ${st.solved ? 'Ergebnis: '+fmt(x/gcd(x,y), y/gcd(x,y))+'-mal.' : ''}`, 19);
       $('piccap').textContent = `Beide Brüche mit ${N} gleich großen Feldern: ${t.c}/${t.d} sind ${F(y)}, ${t.a}/${t.b} sind ${F(x)}.`;
       h = 220;
     } else if (k === 'fehler'){
       const vals = [t.wn/t.wd, t.rn/t.rd, t.a/t.b];
-      const U = Math.max(1, Math.ceil(Math.max(...vals) - 1e-9)), X = 170, W = 400, H = 36, uw = W/U;
-      const row = (y, label, p, q, fill) => { let r = T(X-12,y+25,label,18,'end'); for (let u=0;u<U;u++) r += R(X+u*uw,y,uw,H,'var(--sheet)'); r += R(X,y,uw*p/q,H,fill); for (let u=0;u<U;u++) r += R(X+u*uw,y,uw,H,'none','var(--graphite)',3); return r; };
-      s += row(14, `${t.a}/${t.b}`, t.a, t.b, 'url(#hO)');
-      s += row(66, `${MUL?'Max':'Mia'}: ${fmt(t.wn,t.wd)}`, t.wn, t.wd, 'url(#hX)');
-      if (st.solved) s += row(118, `richtig: ${fmt(t.rn/gcd(t.rn,t.rd), t.rd/gcd(t.rn,t.rd))}`, t.rn, t.rd, 'url(#hY)');
+      const U = Math.max(1, Math.ceil(Math.max(...vals) - 1e-9)), X = 170, W = 400, H = 36;
+      const row = (y, pre, lp, lq, p, q, fill) => TF(X-12,y+H/2,lp,lq,18,'end',pre) + wholes(X,y,W,H,U,q,[{from:0,to:p,fill}]);
+      s += row(14, '', t.a, t.b, t.a, t.b, 'url(#hO)');
+      s += row(66, (MUL?'Max':'Mia')+':', t.wn, t.wd, t.wn, t.wd, 'url(#hX)');
+      if (st.solved) s += row(118, 'richtig:', t.rn/gcd(t.rn,t.rd), t.rd/gcd(t.rn,t.rd), t.rn, t.rd, 'url(#hY)');
       $('piccap').textContent = (U > 1 ? 'Jedes umrandete Stück ist ein Ganzes. ' : '') + (MUL ? (t.n ? `Malnehmen mit ${t.n} heißt: ${t.n}-mal so viel.` : 'Ein Teil von einem Teil ist kleiner als beide Brüche.') : (t.n ? `Teilen durch ${t.n} heißt: weniger als vorher.` : 'Vergleiche die Längen.'));
       h = st.solved ? 170 : 118;
     }
